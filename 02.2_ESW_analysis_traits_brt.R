@@ -8,27 +8,7 @@ library(ggthemr)
 ggthemr("fresh") 
 library(ggExtra)
 
-# Task ------------------------------------------------------------------------
-
-#Brittany, this is currently a copy of the lm script
-# we are going to repeat that analysis except using a brt model instead of lm
-# you can read about brt here
-# https://besjournals.onlinelibrary.wiley.com/doi/10.1111/j.1365-2656.2008.01390.x
-
-#the only difference will be this (instead of lm) 
-library(dismo)
-gbm1 <- gbm.step(data=traitsDF, gbm.x =9:ncol(traitsDF), gbm.y = "ESW", family = "gaussian",
-                 tree.complexity = 3, learning.rate = 0.001, step.size = 10,
-                 bag.fraction = 0.75, n.folds = 5, n.trees = 2000)
-
-# we can look at their relative like this:
-summary(gbm1)
-gbm.plot(gbm1, n.plots=12)
-#save these in the plots folder
-
-#you can use 'predict' in the same way as for lm
-
-# modify the sections of the script as needed below to use this brt model instead of the lm
+set.seed(1039)
 
 # DOF data ---------------------------------------------------------------------
 
@@ -37,14 +17,14 @@ source('00_functions.R', echo=TRUE)
 # Get estimated ESW ------------------------------------------------------------
 
 #these are calculated in the script 02.1_ESW_analysis.R
-detDF <- readRDS("outputs/distance_passerines_constant.rds")
+detDF <- readRDS("Data/distance_passerines_constant.rds")
 #for each species, we have an estimate of its estimated strip width (ESW)
 #(ESW is essentially a measure of species detectability)
 
 # get traits file --------------------------------------------------------------
 
 #already compiled ecological and morphological traits for each species
-traits <- readRDS("traits/traits.rds")
+traits <- readRDS("Data/traits.rds")
 head(traits)
 
 #some tweaks
@@ -60,6 +40,7 @@ traits <- traits %>% filter(Species!= "Larus canus")
 traitsDF <- detDF %>%
   inner_join(., traits, by="Species") 
 
+
 # traits selection --------------------------------------------------------
 
 #The brt allows us to include more traits too.
@@ -67,7 +48,7 @@ traitsDF <- detDF %>%
 traitsDF <- traitsDF %>%
   select_if(~ !any(is.na(.)))  %>%
   mutate_if(., is.character, as.factor) %>%
-  dplyr::select(-ID, -Order, -Family, -Eggshells, 
+  dplyr::select(-ID, -Order, -Family, 
                 -Association.outside.the.breeding.season,-Data.source) %>%
   dplyr::select(-Association.during.nesting, -Family1, -Order1,-Sequence,-Avibase.ID1,-Fish_Y,
                 -Desert, -Fish_B,-Savanna, -Facultative.migrant,-Marine, -Nocturnal, -Reed,
@@ -76,75 +57,66 @@ traitsDF <- traitsDF %>%
                 -WingM_MEAN, -WingF_MEAN, -TailM_MEAN,-TailF_MEAN, -BillM_MEAN, -BillF_MEAN,
                 -TarsusM_MEAN,-TarsusF_MEAN, -Centroid.Latitude) 
 
-# plot relationships -----------------------------------------------------------
+# BRT ------------------------------------------------------------------------
 
-#We want to look at relationships between species traits and their ESW
+#Brittany, this is currently a copy of the lm script
+# we are going to repeat that analysis except using a brt model instead of lm
+# you can read about brt here
+# https://besjournals.onlinelibrary.wiley.com/doi/10.1111/j.1365-2656.2008.01390.x
 
-#Figure 1 of the paper
+#the only difference will be this (instead of lm) 
+library(dismo)
+library(gbm)
 
-#rewrite these using ggplot, instead of qplot
-#and generally tidy up
+gbm1 <- gbm.step(data=traitsDF, gbm.x =9:ncol(traitsDF), gbm.y = "ESW", family = "gaussian",
+                 tree.complexity = 3, learning.rate = 0.001, step.size = 10,
+                 bag.fraction = 0.75, n.folds = 5, n.trees = 2000)
 
-g1 <- qplot(Mass, ESW, data=traitsDF) + 
-  stat_smooth(method="lm") +
-  ylab("Effective strip width") +
-  scale_x_log10()
+# we can look at their relative like this:
+summary(gbm1)
+gbm.plot(gbm1, n.plots=12)
+#save these in the plots folder
 
-g2 <- qplot(Habitat, ESW, data=traitsDF, geom="boxplot") + 
-  geom_jitter(width = 0.2,colour="black", alpha = 0.5)+
-  coord_flip() 
+# let's try changing the parameters, starting with lr
+gbm2 <- gbm.step(data=traitsDF, gbm.x =9:ncol(traitsDF), gbm.y = "ESW", family = "gaussian",
+                 tree.complexity = 3, learning.rate = 0.0001, step.size = 10,
+                 bag.fraction = 0.75, n.folds = 5, n.trees = 2000)
 
-g3 <- qplot(Trophic.Level, ESW, data=traitsDF, geom="boxplot") +
-  geom_jitter(width = 0.2,colour="black", alpha = 0.5)+
-  xlab("Trophic niche") +
-  coord_flip()
+# we can look at their relative like this:
+summary(gbm2)
+gbm.plot(gbm2, n.plots=12)
 
-g4 <- qplot(ForStrat.ground, ESW, data=traitsDF) + 
-  stat_smooth(method="lm")+
-  xlab("Ground foraging  %")
+# this does not look much different, so we will stick with our original learning.rate
 
-g5 <- qplot(as.factor(flockSize), ESW, data=traitsDF, geom="boxplot") +
-  geom_jitter(width = 0.2,colour="black", alpha = 0.5)+
-  xlab("Flocking")
+# now, let's try simplying the model to see which variables can be dropped
+gbm1_simp <- gbm.simplify(gbm1, n.drops = 20)
+# this code found 9 variables to drop
 
-#please tidy this up a bit, maybe use patchwork instead of cowplot?
-gRest <- cowplot::plot_grid(g4, g5,
-          g2, g3,
-          nrow=2,
-          labels=c("b","c","d","e"))
+# let's try runnnig the model again with these rows dropped.
+gbm1_reduced <- gbm.step(data=traitsDF, gbm.x =gbm1_simp$pred.list[[1]], gbm.y = "ESW", family = "gaussian",
+                 tree.complexity = 3, learning.rate = 0.001, step.size = 10,
+                 bag.fraction = 0.75, n.folds = 5, n.trees = 2000)
 
-cowplot::plot_grid(g1,
-          gRest, nrow=2,
-          labels=c("a",""))
+summary(gbm1_reduced)
 
-#save plot in plots folder
+# given the small size of our data set, we should keep data even if it contributes little
+# so we will continue on with gbm1
 
-# all traits regression ------------------------------------------------------------------
+# let's look at some plots - start with the trend line
+gbm.plot(gbm1, n.plots=12)
 
-hist(traitsDF$ESW)
+# now let's look at the raw points and distribution of data
+# use the v parameter to specify which plot you want to view.
+gbm.plot.fits(gbm1, v=1)
 
-lm1 <- lm(ESW ~ log(Mass) + ForStrat.ground + Habitat + 
-             Trophic.Level + flockSize, data=traitsDF)
-summary(lm1)
+# let's look at pairwise interactions in the data
+interactions <- gbm.interactions(gbm1)
+interactions
 
-#pull out coefficients and plot them
-coefDF <- data.frame(Param = names(coefficients(lm1)),
-                     estimate = as.numeric(coefficients(lm1)),
-                     lower = as.numeric(confint(lm1)[,1]),
-                     upper = as.numeric(confint(lm1)[,2]))
+#you can use 'predict' in the same way as for lm
 
-ggplot(coefDF)+
-  geom_pointrange(aes(x=Param, y=estimate, ymin=lower, ymax=upper))+
-  geom_hline(yintercept=0, linetype="dashed")+
-  coord_flip()
 
-# drop to significant variables
-lm1 <- lm(ESW ~ log(Mass) + ForStrat.ground + Habitat + 
-            Trophic.Level, data=traitsDF)
-summary(lm1)
-
-#maybe organise this into a nicely formatted table?
-#https://modelsummary.com/
+# modify the sections of the script as needed below to use this brt model instead of the lm
 
 ## predictions -------------------------------------------------------------------
 
@@ -159,14 +131,16 @@ leave_one_out_function <- function(species_name){
   dat_filtered <- traitsDF %>%
     dplyr::filter(Species != species_name)
   
-  mod <- lm(ESW ~ log(Mass) + ForStrat.ground + Habitat + 
-              Trophic.Level,
-            data=dat_filtered)
+  gbm1 <- gbm.step(data=traitsDF, gbm.x =9:ncol(traitsDF), gbm.y = "ESW", family = "gaussian",
+                   tree.complexity = 3, learning.rate = 0.0001, step.size = 10,
+                   bag.fraction = 0.75, n.folds = 5, n.trees = 2000)
   
   new_dat <- traitsDF %>%
     dplyr::filter(Species==species_name)
   
-  predicted_ESW <- predict(mod, new_dat)
+  predicted_ESW <- predict.gbm(gbm1, new_dat,
+                               n.trees=gbm1$gbm.call$best.trees, 
+                               type="response")
   
   loo_summary <- data.frame(Species=species_name,
                             observed_ESW=new_dat$ESW,
@@ -176,19 +150,25 @@ leave_one_out_function <- function(species_name){
   
 }
 
+# the following code will take over an hour to run
 leave_one_out_results <- bind_rows(lapply(unique(traitsDF$Species), 
                                           leave_one_out_function))
 
-saveRDS(leave_one_out_results, file="outputs/leave_one_out_results.rds")
+saveRDS(leave_one_out_results, file="Data/leave_one_out_results_brt.rds")
 
 #Figure 2
 Fig2a <- ggplot(leave_one_out_results, aes(x=observed_ESW, y=predicted_ESW))+
   geom_point()+
-  theme_bw()+
-  theme(axis.text=element_text(color="black"))+
+  theme_minimal()+
+  theme(axis.text=element_text(color="black"),
+        axis.line.x = element_line(color = "black", size = 0.5),
+        axis.line.y = element_line(color = "black", size = 0.5))+
   xlab("Observed ESW")+
   ylab("Predicted ESW")+
   geom_smooth(method="lm")
+Fig2a
+
+ggsave("Figures/Figure2_brt.jpeg", height=5, width=5, units="in")
 
 #save this plot in the plots folder
 

@@ -3,7 +3,7 @@ library(tidyverse)
 library(broom)
 library(lubridate)
 library(patchwork)
-#devtools::install_github('cttobin/ggthemr')
+# devtools::install_github('cttobin/ggthemr')
 library(ggthemr)
 ggthemr("fresh") 
 library(ggExtra)
@@ -15,14 +15,14 @@ source('00_functions.R', echo=TRUE)
 # Get estimated ESW ------------------------------------------------------------
 
 #these are calculated in the script 02.1_ESW_analysis.R
-detDF <- readRDS("outputs/distance_passerines_constant.rds")
+detDF <- readRDS("Data/distance_passerines_constant.rds")
 #for each species, we have an estimate of its estimated strip width (ESW)
 #(ESW is essentially a measure of species detectability)
 
 # get traits file --------------------------------------------------------------
 
 #already compiled ecological and morphological traits for each species
-traits <- readRDS("traits/traits.rds")
+traits <- readRDS("Data/traits.rds")
 head(traits)
 
 #some tweaks
@@ -70,6 +70,7 @@ g5 <- qplot(as.factor(flockSize), ESW, data=traitsDF, geom="boxplot") +
   xlab("Flocking")
 
 #please tidy this up a bit, maybe use patchwork instead of cowplot?
+# Update your plots to reduce white space between the y-axis label and the axis
 gRest <- cowplot::plot_grid(g4, g5,
           g2, g3,
           nrow=2,
@@ -77,7 +78,22 @@ gRest <- cowplot::plot_grid(g4, g5,
 
 cowplot::plot_grid(g1,
           gRest, nrow=2,
-          labels=c("a",""))
+          labels = c("a", ""))
+
+
+# Arrange g4, g5, g2, and g3 in a 2x2 grid with labels
+gRest <- (g4 | g5) / 
+  (g2 | g3) + 
+  plot_annotation(tag_levels = list(c("b", "c", "d", "e")))
+
+# Combine g1 with gRest, with g1 on top and gRest below
+final_plot <- g1 / gRest + 
+  plot_layout(nrow = 2) +  # Ensure the layout has 2 rows
+  plot_annotation(tag_levels = list(c("a", "b", "c", "d", "e")))  # Add labels for the combined plot
+
+# Print the final plot
+final_plot
+ggsave("Figures/Figure1.jpeg", width=7, height=7, units="in")
 
 #save plot in plots folder
 
@@ -107,6 +123,9 @@ summary(lm1)
 
 #maybe organise this into a nicely formatted table?
 #https://modelsummary.com/
+
+library(modelsummary)
+modelsummary(lm1, output="Figures/Linear_Model_Ouput.docx")
 
 ## predictions -------------------------------------------------------------------
 
@@ -141,17 +160,21 @@ leave_one_out_function <- function(species_name){
 leave_one_out_results <- bind_rows(lapply(unique(traitsDF$Species), 
                                           leave_one_out_function))
 
-saveRDS(leave_one_out_results, file="outputs/leave_one_out_results.rds")
+saveRDS(leave_one_out_results, file="Data/leave_one_out_results.rds")
 
 #Figure 2
 Fig2a <- ggplot(leave_one_out_results, aes(x=observed_ESW, y=predicted_ESW))+
   geom_point()+
-  theme_bw()+
-  theme(axis.text=element_text(color="black"))+
+  theme_minimal()+
+  theme(axis.text=element_text(color="black"),
+        axis.line.x = element_line(color = "black", size = 0.5),
+        axis.line.y = element_line(color = "black", size = 0.5))+
   xlab("Observed ESW")+
   ylab("Predicted ESW")+
   geom_smooth(method="lm")
+Fig2a
 
+ggsave("Figures/Figure2.jpeg", height=5, width=5, units="in")
 #save this plot in the plots folder
 
 cor.test(leave_one_out_results$observed_ESW,
