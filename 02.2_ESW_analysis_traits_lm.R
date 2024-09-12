@@ -93,7 +93,7 @@ final_plot <- g1 / gRest +
 
 # Print the final plot
 final_plot
-ggsave("Figures/Figure1.jpeg", width=7, height=7, units="in")
+ggsave("Figures/Figure1.jpeg", width=7, height=9, units="in")
 
 #save plot in plots folder
 
@@ -125,7 +125,9 @@ summary(lm1)
 #https://modelsummary.com/
 
 library(modelsummary)
-modelsummary(lm1, output="Figures/Linear_Model_Ouput.docx")
+modelsummary(lm1, statistic = c("conf.low", "conf.high"), 
+             shape = term ~ model + statistic,
+             output="Figures/Linear_Model_Ouput_all.docx")
 
 ## predictions -------------------------------------------------------------------
 
@@ -161,6 +163,7 @@ leave_one_out_results <- bind_rows(lapply(unique(traitsDF$Species),
                                           leave_one_out_function))
 
 saveRDS(leave_one_out_results, file="Data/leave_one_out_results.rds")
+leave_one_out_results <- readRDS("Data/leave_one_out_results.rds")
 
 #Figure 2
 Fig2a <- ggplot(leave_one_out_results, aes(x=observed_ESW, y=predicted_ESW))+
@@ -173,9 +176,6 @@ Fig2a <- ggplot(leave_one_out_results, aes(x=observed_ESW, y=predicted_ESW))+
   ylab("Predicted ESW")+
   geom_smooth(method="lm")
 Fig2a
-
-ggsave("Figures/Figure2.jpeg", height=5, width=5, units="in")
-#save this plot in the plots folder
 
 cor.test(leave_one_out_results$observed_ESW,
          leave_one_out_results$predicted_ESW)
@@ -190,6 +190,62 @@ cor.test(leave_one_out_results$observed_ESW,
 
 #Figure 2a can be the plot above using the full model and 
 # Figure 2b can be same but for the model using only body size
+
+lm_size <- lm(ESW ~ log(Mass), data=traitsDF)
+summary(lm_size)
+
+#pull out coefficients and plot them
+coefDF_size <- data.frame(Param = names(coefficients(lm_size)),
+                     estimate = as.numeric(coefficients(lm_size)),
+                     lower = as.numeric(confint(lm_size)[,1]),
+                     upper = as.numeric(confint(lm_size)[,2]))
+
+ggplot(coefDF_size)+
+  geom_pointrange(aes(x=Param, y=estimate, ymin=lower, ymax=upper))+
+  geom_hline(yintercept=0, linetype="dashed")+
+  coord_flip()
+
+# now run the leave one out function
+leave_one_out_function <- function(species_name){
+  
+  dat_filtered <- traitsDF %>%
+    dplyr::filter(Species != species_name)
+  
+  mod <- lm(ESW ~ log(Mass), data=dat_filtered)
+  
+  new_dat <- traitsDF %>%
+    dplyr::filter(Species==species_name)
+  
+  predicted_ESW <- predict(mod, new_dat)
+  
+  loo_summary <- data.frame(Species=species_name,
+                            observed_ESW=new_dat$ESW,
+                            predicted_ESW=predicted_ESW)
+  
+  return(loo_summary)
+  
+}
+
+leave_one_out_results_size <- bind_rows(lapply(unique(traitsDF$Species), 
+                                          leave_one_out_function))
+
+saveRDS(leave_one_out_results_size, file="Data/leave_one_out_results_size.rds")
+leave_one_out_results <- readRDS("Data/leave_one_out_results_size.rds")
+
+#Figure 2
+Fig2b <- ggplot(leave_one_out_results_size, aes(x=observed_ESW, y=predicted_ESW))+
+  geom_point()+
+  theme_minimal()+
+  theme(axis.text=element_text(color="black"),
+        axis.line.x = element_line(color = "black", size = 0.5),
+        axis.line.y = element_line(color = "black", size = 0.5))+
+  xlab("Observed ESW")+
+  ylab("Predicted ESW")+
+  geom_smooth(method="lm")
+Fig2b
+
+cor.test(leave_one_out_results_size$observed_ESW,
+         leave_one_out_results_size$predicted_ESW)
 
 # How many species do we need -------------------------------------------
 
@@ -322,12 +378,12 @@ cor.test(leave_one_out_results$observed_ESW,
 # of observed ESW 
 
 #get site-level relative abundance predictions (not corrected for detection)
-sitePreds <- readRDS("outputs/xgsitepredsData.rds") %>% 
+sitePreds <- readRDS("Data/xgsitepredsData.rds") %>% 
               dplyr::select(Species, preds) %>%
               rename(Rel_Abund = preds)
 
 #also get estimates of detection rates (ESW) calculated above
-detectionRates <- readRDS("outputs/leave_one_out_results.rds")
+detectionRates <- readRDS("Data/leave_one_out_results.rds")
 
 #merge
 sitePreds <- sitePreds %>% inner_join(., detectionRates, by = "Species")
@@ -387,8 +443,13 @@ g_Abs <- ggMarginal(g_abs, type="boxplot", fill = "lightblue")
 
 #Figure 2c and Figure 2d
 #combine with Figure 2a and 2b above
-patchwork::wrap_elements(g_Error) + patchwork::wrap_elements(g_Abs)
+combined_fig2 <- (patchwork::wrap_elements(Fig2a) + patchwork::wrap_elements(Fig2b))/
+  (patchwork::wrap_elements(g_Error) + patchwork::wrap_elements(g_Abs)) + 
+  plot_annotation(tag_levels = list(c("a", "b", "c", "d")))
+combined_fig2
 #save in plots folder
+
+ggsave("Figures/Fig2.jpeg", height=7, width=7, units="in")
 
 # covariate effects ------------------------------------------------------------
 
@@ -397,7 +458,7 @@ patchwork::wrap_elements(g_Error) + patchwork::wrap_elements(g_Abs)
 #forest cover - we expect higher forest cover leads to lower detections
 #paths/roads - we expect some species to be attracted to roads and others to be deterred
 
-detDF <- readRDS("outputs/distance_passerines_covs.rds")
+detDF <- readRDS("Data/distance_passerines_covs.rds")
 
 traitsDF <- detDF %>%
   inner_join(., traits, by="Species") 

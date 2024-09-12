@@ -69,41 +69,15 @@ library(dismo)
 library(gbm)
 
 gbm1 <- gbm.step(data=traitsDF, gbm.x =9:ncol(traitsDF), gbm.y = "ESW", family = "gaussian",
-                 tree.complexity = 3, learning.rate = 0.001, step.size = 10,
+                 tree.complexity = 3, learning.rate = 0.0001, step.size = 10,
                  bag.fraction = 0.75, n.folds = 5, n.trees = 2000)
+# I tried different variables for learning rate, but 0.0001 was necessary for the 
+# leave one analysis later on
 
 # we can look at their relative like this:
 summary(gbm1)
 gbm.plot(gbm1, n.plots=12)
 #save these in the plots folder
-
-# let's try changing the parameters, starting with lr
-gbm2 <- gbm.step(data=traitsDF, gbm.x =9:ncol(traitsDF), gbm.y = "ESW", family = "gaussian",
-                 tree.complexity = 3, learning.rate = 0.0001, step.size = 10,
-                 bag.fraction = 0.75, n.folds = 5, n.trees = 2000)
-
-# we can look at their relative like this:
-summary(gbm2)
-gbm.plot(gbm2, n.plots=12)
-
-# this does not look much different, so we will stick with our original learning.rate
-
-# now, let's try simplying the model to see which variables can be dropped
-gbm1_simp <- gbm.simplify(gbm1, n.drops = 20)
-# this code found 9 variables to drop
-
-# let's try runnnig the model again with these rows dropped.
-gbm1_reduced <- gbm.step(data=traitsDF, gbm.x =gbm1_simp$pred.list[[1]], gbm.y = "ESW", family = "gaussian",
-                 tree.complexity = 3, learning.rate = 0.001, step.size = 10,
-                 bag.fraction = 0.75, n.folds = 5, n.trees = 2000)
-
-summary(gbm1_reduced)
-
-# given the small size of our data set, we should keep data even if it contributes little
-# so we will continue on with gbm1
-
-# let's look at some plots - start with the trend line
-gbm.plot(gbm1, n.plots=12)
 
 # now let's look at the raw points and distribution of data
 # use the v parameter to specify which plot you want to view.
@@ -114,7 +88,6 @@ interactions <- gbm.interactions(gbm1)
 interactions
 
 #you can use 'predict' in the same way as for lm
-
 
 # modify the sections of the script as needed below to use this brt model instead of the lm
 
@@ -155,6 +128,7 @@ leave_one_out_results <- bind_rows(lapply(unique(traitsDF$Species),
                                           leave_one_out_function))
 
 saveRDS(leave_one_out_results, file="Data/leave_one_out_results_brt.rds")
+leave_one_out_results <- readRDS("Data/leave_one_out_results_brt.rds")
 
 #Figure 2
 Fig2a <- ggplot(leave_one_out_results, aes(x=observed_ESW, y=predicted_ESW))+
@@ -176,15 +150,71 @@ cor.test(leave_one_out_results$observed_ESW,
          leave_one_out_results$predicted_ESW)
 
 
-## body size regression -------------------------------------------------
+## simplified model regression -------------------------------------------------
 
-#repeat the previous section of 'all traits regression'
-# but only using body size
-# so mod <- lm(ESW ~ log(Mass), data=dat_filtered)
-#everything else the same
+# in the linear model code, we tried running a linear model with just mass
+# in this code, we can try running the BRT with only variables that the gbm.simplify 
+# function identifies as relevant
 
 #Figure 2a can be the plot above using the full model and 
 # Figure 2b can be same but for the model using only body size
+
+# now, let's try simplying the model to see which variables can be dropped
+gbm1_simp <- gbm.simplify(gbm1, n.drops = 20)
+# this code found 9 variables to drop
+
+# let's try runnnig the model again with these rows dropped.
+gbm1_reduced <- gbm.step(data=traitsDF, gbm.x =gbm1_simp$pred.list[[1]], gbm.y = "ESW", family = "gaussian",
+                         tree.complexity = 3, learning.rate = 0.0001, step.size = 10,
+                         bag.fraction = 0.75, n.folds = 5, n.trees = 2000)
+
+summary(gbm1_reduced)
+
+leave_one_out_function <- function(species_name){
+  
+  dat_filtered <- traitsDF %>%
+    dplyr::filter(Species != species_name)
+  
+  gbm1 <- gbm.step(data=traitsDF, gbm.x =gbm1_simp$pred.list[[1]], gbm.y = "ESW", family = "gaussian",
+                   tree.complexity = 3, learning.rate = 0.0001, step.size = 10,
+                   bag.fraction = 0.75, n.folds = 5, n.trees = 2000)
+  
+  new_dat <- traitsDF %>%
+    dplyr::filter(Species==species_name)
+  
+  predicted_ESW <- predict.gbm(gbm1, new_dat,
+                               n.trees=gbm1$gbm.call$best.trees, 
+                               type="response")
+  
+  loo_summary <- data.frame(Species=species_name,
+                            observed_ESW=new_dat$ESW,
+                            predicted_ESW=predicted_ESW)
+  
+  return(loo_summary)
+  
+}
+
+# the following code will take over an hour to run
+leave_one_out_results_reduced <- bind_rows(lapply(unique(traitsDF$Species), 
+                                          leave_one_out_function))
+
+saveRDS(leave_one_out_results_reduced, file="Data/leave_one_out_results_brt_reduced.rds")
+leave_one_out_results_reduced <- readRDS("Data/leave_one_out_results_brt_reduced.rds")
+
+#Figure 2
+Fig2b <- ggplot(leave_one_out_results_reduced, aes(x=observed_ESW, y=predicted_ESW))+
+  geom_point()+
+  theme_minimal()+
+  theme(axis.text=element_text(color="black"),
+        axis.line.x = element_line(color = "black", size = 0.5),
+        axis.line.y = element_line(color = "black", size = 0.5))+
+  xlab("Observed ESW")+
+  ylab("Predicted ESW")+
+  geom_smooth(method="lm")
+Fig2b
+
+cor.test(leave_one_out_results_reduced$observed_ESW,
+         leave_one_out_results_reduced$predicted_ESW)
 
 # How many species do we need -------------------------------------------
 
@@ -317,12 +347,12 @@ cor.test(leave_one_out_results$observed_ESW,
 # of observed ESW 
 
 #get site-level relative abundance predictions (not corrected for detection)
-sitePreds <- readRDS("outputs/xgsitepredsData.rds") %>% 
+sitePreds <- readRDS("Data/xgsitepredsData.rds") %>% 
               dplyr::select(Species, preds) %>%
               rename(Rel_Abund = preds)
 
 #also get estimates of detection rates (ESW) calculated above
-detectionRates <- readRDS("outputs/leave_one_out_results.rds")
+detectionRates <- readRDS("Data/leave_one_out_results_brt.rds")
 
 #merge
 sitePreds <- sitePreds %>% inner_join(., detectionRates, by = "Species")
@@ -371,7 +401,12 @@ g_Abs <- ggMarginal(g_abs, type="boxplot", fill = "lightblue")
 
 #Figure 2c and Figure 2d
 #combine with Figure 2a and 2b above
-patchwork::wrap_elements(g_Error) + patchwork::wrap_elements(g_Abs)
+combined_fig2 <- (patchwork::wrap_elements(Fig2a) + patchwork::wrap_elements(Fig2b))/
+  (patchwork::wrap_elements(g_Error) + patchwork::wrap_elements(g_Abs)) + 
+  plot_annotation(tag_levels = list(c("a", "b", "c", "d")))
+combined_fig2
 #save in plots folder
+
+ggsave("Figures/Fig2_brt.jpeg", height=7, width=7, units="in")
 
 # end --------------------------------------------------------------------------
