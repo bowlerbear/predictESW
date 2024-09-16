@@ -76,7 +76,10 @@ gbm1 <- gbm.step(data=traitsDF, gbm.x =9:ncol(traitsDF), gbm.y = "ESW", family =
 
 # we can look at their relative like this:
 summary(gbm1)
+
+jpeg("Figures/gbm_plots.jpeg", width=2000, height=2000, res=300)
 gbm.plot(gbm1, n.plots=12)
+dev.off()
 #save these in the plots folder
 
 # now let's look at the raw points and distribution of data
@@ -86,10 +89,50 @@ gbm.plot.fits(gbm1, v=1)
 # let's look at pairwise interactions in the data
 interactions <- gbm.interactions(gbm1)
 interactions
+# not sure if we want to include this in the manuscript, but I will leave it here for reference
 
 #you can use 'predict' in the same way as for lm
 
 # modify the sections of the script as needed below to use this brt model instead of the lm
+
+## Sensitivity Analysis of BRT parameters ----------------------------------------
+
+# let's test a few different parameters in the BRT
+gbm2 <- gbm.step(data=traitsDF, gbm.x =9:ncol(traitsDF), gbm.y = "ESW", family = "gaussian",
+                 tree.complexity = 3, learning.rate = 0.001, step.size = 10,
+                 bag.fraction = 0.75, n.folds = 5, n.trees = 2000)
+
+# let's test a few different parameters in the BRT
+gbm3 <- gbm.step(data=traitsDF, gbm.x =9:ncol(traitsDF), gbm.y = "ESW", family = "gaussian",
+                 tree.complexity = 5, learning.rate = 0.001, step.size = 10,
+                 bag.fraction = 0.75, n.folds = 5, n.trees = 2000)
+
+# let's test a few different parameters in the BRT
+gbm4 <- gbm.step(data=traitsDF, gbm.x =9:ncol(traitsDF), gbm.y = "ESW", family = "gaussian",
+                 tree.complexity = 3, learning.rate = 0.0001, step.size = 10,
+                 bag.fraction = 0.75, n.folds = 5, n.trees = 3000)
+
+# let's test a few different parameters in the BRT
+gbm5 <- gbm.step(data=traitsDF, gbm.x =9:ncol(traitsDF), gbm.y = "ESW", family = "gaussian",
+                 tree.complexity = 3, learning.rate = 0.0001, step.size = 10,
+                 bag.fraction = 0.75, n.folds = 5, n.trees = 1000)
+
+# let's test a few different parameters in the BRT
+gbm6 <- gbm.step(data=traitsDF, gbm.x =9:ncol(traitsDF), gbm.y = "ESW", family = "gaussian",
+                 tree.complexity = 5, learning.rate = 0.0001, step.size = 10,
+                 bag.fraction = 0.75, n.folds = 5, n.trees = 1000)
+
+gbm1$cv.statistics$deviance.mean
+gbm2$cv.statistics$deviance.mean
+gbm3$cv.statistics$deviance.mean
+gbm4$cv.statistics$deviance.mean
+gbm5$cv.statistics$deviance.mean
+gbm6$cv.statistics$deviance.mean
+
+# based on this, the lower learning rate seems to be better; however, these model parameters
+# will not work in the leave-one-out cross validation function below. Therefore, we should choose
+# the lowest deviance mean from the models with a learning rate of 0.0001, which is gbm1
+
 
 ## predictions -------------------------------------------------------------------
 
@@ -389,6 +432,9 @@ g_error <- ggplot(popOutput) +
 
 g_Error <- ggMarginal(g_error, type="density", fill = "lightblue")
 
+lm_error <- lm(ESW_error ~ Pop_error, data=popOutput)
+summary(lm_error)
+
 g_abs <- ggplot(popOutput) +
   geom_point(aes(x = abs(ESW_error), y = abs(Pop_error))) +
   geom_hline(yintercept = 0, linetype ="dashed") +
@@ -398,6 +444,8 @@ g_abs <- ggplot(popOutput) +
 
 g_Abs <- ggMarginal(g_abs, type="boxplot", fill = "lightblue")
   
+lm_error_abs <- lm(abs(ESW_error) ~ abs(Pop_error), data=popOutput)
+summary(lm_error_abs)
 
 #Figure 2c and Figure 2d
 #combine with Figure 2a and 2b above

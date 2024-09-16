@@ -92,6 +92,7 @@ panela
 # stability of trait associations --------------------------------------------------
 
 #get the traits data frame from the other script
+traits <- readRDS("Data/traits.rds")
 
 traitsDF <- nullDFannual %>%
   rename(Species = species) %>%
@@ -164,7 +165,7 @@ CCC(traitsDF$x2015, traitsDF$preds2014)$rho.c
 #plot individual errors
 errors1415 <- data.frame(error = c(CCC(traitsDF$x2015, traitsDF$x2014)$blalt$delta,
                                CCC(traitsDF$x2015, traitsDF$preds2014)$blalt$delta),
-                     type = c(rep("past estimate",72), rep("trait-based estimate",72)),
+                     type = c(rep("past estimate",73), rep("trait-based estimate",73)),
                      species = rep(traitsDF$Species, 2))
 
 
@@ -177,7 +178,7 @@ ggplot(errors1415, aes(x=type, y = error, groups = species))+
 ggplot(errors1415, aes(x = type, y = error, group = species)) +
   geom_point() +
   geom_line() +  # Draw lines between estimates of the same species
-  geom_label_repel(data = subset(errors, abs(error) > 25), aes(label = species), size = 3.5) +  # Use ggrepel for better label placement
+  geom_label_repel(data = subset(errors1415, abs(error) > 25), aes(label = species), size = 3.5) +  # Use ggrepel for better label placement
   xlab("Approach") +
   ylab("Error in ESW (m)")
 
@@ -201,7 +202,7 @@ CCC(traitsDF$x2016, traitsDF$preds2015)$rho.c
 #plot individual errors
 errors1516 <- data.frame(error = c(CCC(traitsDF$x2016, traitsDF$x2015)$blalt$delta,
                                CCC(traitsDF$x2016, traitsDF$preds2015)$blalt$delta),
-                     type = c(rep("past estimate",72), rep("trait-based estimate",72)),
+                     type = c(rep("past estimate",73), rep("trait-based estimate",73)),
                      species = rep(traitsDF$Species, 2))
 
 ggplot(errors1516, aes(x=type, y = error, groups = species))+
@@ -213,7 +214,7 @@ ggplot(errors1516, aes(x=type, y = error, groups = species))+
 ggplot(errors1516, aes(x = type, y = error, group = species)) +
   geom_point() +
   geom_line() +  # Draw lines between estimates of the same species
-  geom_label_repel(data = subset(errors, abs(error) > 25), aes(label = species), size = 3.5) +  # Use ggrepel for better label placement
+  geom_label_repel(data = subset(errors1516, abs(error) > 25), aes(label = species), size = 3.5) +  # Use ggrepel for better label placement
   xlab("Approach") +
   ylab("Error in ESW (m)")
 
@@ -234,7 +235,7 @@ CCC(traitsDF$x2017, traitsDF$preds2016)$rho.c
 #plot individual errors
 errors1617 <- data.frame(error = c(CCC(traitsDF$x2017, traitsDF$x2016)$blalt$delta,
                                CCC(traitsDF$x2017, traitsDF$preds2016)$blalt$delta),
-                     type = c(rep("past estimate",72), rep("trait-based estimate",72)),
+                     type = c(rep("past estimate",73), rep("trait-based estimate",73)),
                      species = rep(traitsDF$Species, 2))
 
 ggplot(errors1617, aes(x=type, y = error, groups = species))+
@@ -253,7 +254,7 @@ ggplot(errors1617, aes(x = type, y = error, group = species)) +
 ggplot(errors1617, aes(x = type, y = error, group = species)) +
   geom_point() +
   geom_line() +  # Draw lines between estimates of the same species
-  geom_label_repel(data = subset(errors, abs(error) > 25), aes(label = species), size = 3.5) +  # Use ggrepel for better label placement
+  geom_label_repel(data = subset(errors1617, abs(error) > 25), aes(label = species), size = 3.5) +  # Use ggrepel for better label placement
   xlab("Approach") +
   ylab("Error in ESW (m)")
 
@@ -290,6 +291,20 @@ panelb <- ggplot(errors_all, aes(x = type, y = error, group = species)) +
   theme(legend.position = "none",
         strip.text = element_text(size = 12))
 panelb
+
+## Mean absolute difference --------------------------------------------------------------------------
+
+error_long <- errors_all %>%
+  pivot_wider(names_from=type, values_from=error) %>%
+  mutate(estimate_difference = `past estimate`-`trait-based estimate`)
+
+# Create the boxplot
+ggplot(error_long, aes(x = years, y = estimate_difference)) +
+  geom_boxplot() +
+  labs(title = "Box and Whisker Plot of Estimate Difference",
+       y = "Estimate Difference",
+       x = "") +
+  theme_minimal()
 
 # population size estimate --------------------------------------------
 
@@ -329,7 +344,7 @@ popOutput1415 <- lapply(sort(unique(sitePreds$Species)), function(myspecies){
   
 }) %>% bind_rows()
 
-popOutput %>%
+popOutput1415 %>%
   dplyr::select(Species, Pop_error_w_previous, Pop_error_w_traits) %>%
   pivot_longer(cols=2:3, names_to ="Type", values_to ="error") %>%
   ggplot(aes(x=Type, y = abs(error)))+
@@ -364,7 +379,7 @@ popOutput1516 <- lapply(sort(unique(sitePreds$Species)), function(myspecies){
   
 }) %>% bind_rows()
 
-popOutput %>%
+popOutput1516 %>%
   dplyr::select(Species, Pop_error_w_previous, Pop_error_w_traits) %>%
   pivot_longer(cols=2:3, names_to ="Type", values_to ="error") %>%
   ggplot(aes(x=Type, y = abs(error)))+
@@ -397,7 +412,7 @@ popOutput1617 <- lapply(sort(unique(sitePreds$Species)), function(myspecies){
   
 }) %>% bind_rows()
 
-popOutput %>%
+popOutput1617 %>%
   dplyr::select(Species, Pop_error_w_previous, Pop_error_w_traits) %>%
   pivot_longer(cols=2:3, names_to ="Type", values_to ="error") %>%
   ggplot(aes(x=Type, y = abs(error)))+
@@ -425,14 +440,6 @@ popOutput1617 <- popOutput1617 %>%
 
 popOutput_all <- rbind(popOutput1415, popOutput1516, popOutput1617)
 
-# combine all the results on the final plot - use different colours for different years, so the ggplot becomes
-ggplot(popOutput_all, aes(x=Type, y = abs(error)))+
-  geom_boxplot(aes(fill=year))+
-  geom_jitter(aes(colour=year), alpha = 0.5) +
-  xlab("Prediction approach") + 
-  ylab("Population size error (%)") +
-  labs(fill="Year Comparison")
-
 # Create the faceted plot
 panelc <- ggplot(popOutput_all, aes(x = Type, y = abs(error))) +
   geom_boxplot(aes(fill = year), alpha = 0.5) +  # Boxplots colored by year
@@ -452,8 +459,7 @@ panelc <- ggplot(popOutput_all, aes(x = Type, y = abs(error))) +
       "2016 to 2017" = swatch()[9]
     )) +
   labs(fill = "Year Comparison", colour = "Year Comparison") +  # Legend titles
-  facet_wrap(~ year, scales = "free_y") +  # Facet by year
-  scale_x_discrete(labels = c("Pop_error_w_previous" = "Past estimate", "Pop_error_w_traits" = "Trait-based estimate")) +
+  facet_wrap(~ year, scales = "free_y")
   theme(legend.position = "none",
         strip.text = element_text(size = 12))  # Remove the legend
 panelc
@@ -469,6 +475,6 @@ combined_fig <- (patchwork::wrap_elements(panela) /
 combined_fig
 #save in plots folder
 
-ggsave("Figures/annual_analysis_fig.jpeg", height=8, width=8, units="in")
+ggsave("Figures/annual_analysis_fig.jpeg", height=9, width=9, units="in")
 
 # end --------------------------------------------------------------------------

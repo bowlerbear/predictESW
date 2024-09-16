@@ -125,7 +125,7 @@ summary(lm1)
 #https://modelsummary.com/
 
 library(modelsummary)
-modelsummary(lm1, statistic = c("conf.low", "conf.high"), 
+modelsummary(lm1, statistic = c("conf.low", "conf.high", "p.value"), 
              shape = term ~ model + statistic,
              output="Figures/Linear_Model_Ouput_all.docx")
 
@@ -415,7 +415,6 @@ sitePreds_sp %>%
                    Null_error = (Obs_total_pop - Obs_Error_total_pop)/Obs_total_pop,
                    ESW_error = Obs_ESW - Pred_ESW) %>%
             add_column(Species = myspecies)
-
 }) %>% bind_rows()
 
 # plot the relationship and include this as Fig 2c and d (combine with Figur 2a and 2b above)
@@ -430,6 +429,9 @@ g_error <- ggplot(popOutput) +
 
 g_Error <- ggMarginal(g_error, type="density", fill = "lightblue")
 
+lm_error <- lm(ESW_error ~ Pop_error, data=popOutput)
+summary(lm_error)
+
 g_abs <- ggplot(popOutput) +
   geom_point(aes(x = abs(ESW_error), y = abs(Pop_error))) +
   geom_hline(yintercept =  mean(abs(popOutput$Null_error)), linetype ="dashed", color = "red") + # null error
@@ -440,6 +442,8 @@ g_abs <- ggplot(popOutput) +
 
 g_Abs <- ggMarginal(g_abs, type="boxplot", fill = "lightblue")
   
+lm_error_abs <- lm(abs(ESW_error) ~ abs(Pop_error), data=popOutput)
+summary(lm_error_abs)
 
 #Figure 2c and Figure 2d
 #combine with Figure 2a and 2b above
