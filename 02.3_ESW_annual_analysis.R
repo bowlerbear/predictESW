@@ -4,6 +4,7 @@ library(tidyverse)
 library(broom)
 library(lubridate)
 library(patchwork)
+library(GGally)
 #devtools::install_github('cttobin/ggthemr')
 library(ggthemr)
 ggthemr("fresh") 
@@ -51,6 +52,31 @@ pairs(nullDFannual[,-1])
 #pretty good!!
 #tidy up this plot for the SI
 #remove the X from the year labels
+
+# Remove 'x' from year names
+nullDFannual_clean <- nullDFannual %>%
+  rename_with(~ gsub("x", "", .x))
+
+# Keep only numeric columns for pairs plot
+plot_data <- nullDFannual_clean[, -1]  # exclude species column
+
+correlations <- ggpairs(
+  plot_data,
+  lower = list(continuous = lower_fn_with_cor),
+  upper = list(continuous = "blank"),
+  diag = list(continuous = diag_year),
+  xlab = "Effective Strip Width",
+  ylab = "Effective Strip Width"
+)
+
+# Remove the default column/variable names (strip text)
+p <- correlations + theme(strip.text = element_blank())
+
+# Print the plot
+print(p)
+
+ggsave("Figures/correlation_ESWs_edited.jpeg", height=7, width=8.5, units="in")
+
 
 cor(nullDFannual[,-1])
 

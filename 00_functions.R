@@ -90,6 +90,40 @@ getSpeciesData <- function(myspecies, data){
   
 }
 
+### effective strip width correlation analysis ###
+
+# Lower panel: scatter + regression + CI + correlation text
+lower_fn_with_cor <- function(data, mapping, ...) {
+  # get numeric vectors
+  x <- as.numeric(eval_data_col(data, mapping$x))
+  y <- as.numeric(eval_data_col(data, mapping$y))
+  
+  # calculate correlation
+  corr <- round(cor(x, y, use = "complete.obs"), 3)
+  
+  # scatter + regression
+  p <- ggplot(data = data, mapping = mapping) +
+    geom_point(size = 1.5, alpha = 0.8) +
+    geom_smooth(method = "lm", se = TRUE, color = "black", fill = "grey60", ...) +
+    geom_abline(linetype = "dashed") 
+  
+  # add correlation text in top-left
+  p + annotate("text", x = min(x, na.rm=TRUE), y = max(y, na.rm=TRUE),
+               label = paste0("Cor = ", corr), hjust = 0, vjust = 0.5, size = 4)
+}
+
+# Custom diagonal function to display year labels
+diag_year <- function(data, mapping, ...) {
+  # extract clean column name for this panel
+  year_label <- as_label(mapping$x)
+  # remove leading 'x' if present
+  year_label <- gsub("^x", "", year_label)
+  
+  ggplot() +
+    annotate("text", x = 0.5, y = 0.5, label = year_label, size = 6) +
+    theme_void()
+}
+
 ### distance sampling ####
 
 getDistanceData <- function(myspecies){
